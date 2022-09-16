@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <title>Three Suns</title>
+        <!-- <link rel="stylesheet" href="../style/stylesheet.css"> -->
+    </head>
+    <body>
+        <div class="container">
+            <div class="container__main">
+                <main class="content"> 
+                    <canvas id="myCanvas" width="1000" height="500" margin="auto">
+                    </canvas>
+                    <div class="controls1" width="500" height="500" margin="auto">
+                        <button id="buttonLeft" type="button" onclick="startSim()">Start</button>  
+                        <button id="buttonLeft" type="button" onclick="stopSim()">Stop</button> 
+                        
+                        <input type="range" min="0" max="100" value="10" class="slider" id="myRange">
+                        <p id="output"></p>
+
+                    </div>
+                </main>
+            </div>
+        </div>  
+        <script>
+            var canvas = document.getElementById("myCanvas");
+            var ctx = canvas.getContext("2d");
+            var slider = document.getElementById("myRange");
+            slider.disabled = true;
+
+            var BB=canvas.getBoundingClientRect();
+            var offsetX=BB.left;
+            var offsetY=BB.top;
+
+            canvas.onmousedown = myDown;
+            canvas.onmouseup = myUp;
+            canvas.onmousemove = myMove;
+
+            var closeE = false;
+            var closeS1= false;
+            var closeS2 = false;
+            var closeS3 = false;
+
+            var dragok = false;
+            var startX;
+            var startY;
+            
+            var WIDTH = canvas.width;
+            var HEIGHT = canvas.height;
+
+            var E_init = {x: 0.92, y:-0.22, m: 1/300000}
+            var S1_init = {x:2, y:2, m:1.08}
+            var S2_init = {x:-0.5, y:1.5, m:0.9}
+            var S3_init = {x: -2, y: -2, m:0.1221}
+
+            const dt=1/100000;
+            const trailLen=1000;
+            var scale = 10;
+            const trailRes = 2000
+            var E_trail = [E_init];
+            var S1_trail = [S1_init];
+            var S2_trail = [S2_init];
+            var S3_trail = [S3_init];
+
+
+            var recordLen= 5;
+            var E = [];
+            var S1 = [];
+            var S2 = [];
+            var S3 = [];
+
+            function initialize_planets(){
+                for (var i =0; i<trailLen; i++){
+                    E_trail[i] = {x:E_init.x, y:E_init.y, m: E_init.m};
+                    S1_trail[i] = {x:S1_init.x, y:S1_init.y, m:S1_init.m};
+                    S2_trail[i] = {x:S2_init.x, y:S2_init.y, m:S2_init.m};
+                    S3_trail[i] = {x:S3_init.x, y:S3_init.y, m:S3_init.m};
+                }
+
+                for (var i =0; i<recordLen; i++){
+                    E[i] = {x:E_init.x, y:E_init.y, m: E_init.m};
+                    S1[i] = {x:S1_init.x, y:S1_init.y, m:S1_init.m};
+                    S2[i] = {x:S2_init.x, y:S2_init.y, m:S2_init.m};
+                    S3[i] = {x:S3_init.x, y:S3_init.y, m:S3_init.m};
+                }
+            }
+            initialize_planets();
+
+            function lam(t){
+                return 1/2*((Math.E**t-Math.E**(-t))/(Math.E**t+Math.E**(-t))-1);
+            }
+
+            function dx2(B,A1,A2,A3, MAX){
+                function dist(B1,B2){
+                    return Math.sqrt((B1.x-B2.x)**2 + (B1.y-B2.y)**2);
+                }
+
+                const SHARP = 10;
+
+                var x = -lam(SHARP*(A1.m*B.m/dist(A1,B)-MAX))*A1.m/(dist(A1,B)**3)*(A1.x-B.x)
+                    -lam(SHARP*(A2.m*B.m/dist(A2,B)-MAX))*A2.m/(dist(A2,B)**3)*(A2.x-B.x)
+                    -lam(SHARP*(A3.m*B.m/dist(A3,B)-MAX))*A3.m/(dist(A3,B)**3)*(A3.x-B.x);
+                var y = -lam(SHARP*(A1.m*B.m/dist(A1,B)-MAX))*A1.m/(dist(A1,B)**3)*(A1.y-B.y)
+                    -lam(SHARP*(A2.m*B.m/dist(A2,B)-MAX))*A2.m/(dist(A2,B)**3)*(A2.y-B.y)
+                    -lam(SHARP*(A3.m*B.m/dist(A3,B)-MAX))*A3.m/(dist(A3,B)**3)*(A3.y-B.y);
+                
+                if (isNaN(x) || isNaN(y)){
+                    return {x:0, y:0};
+                }
+                return {x:x, y:y};
+            }
+            var count = 0;
+            function update(dt){
+                count++;
+                var E_acc = dx2(E[0], S1[0], S2[0], S3[0], 30);
+                var S1_acc = dx2(S1[0], E[0], S2[0], S3[0], 30);
+                var S2_acc = dx2(S2[0], E[0], S1[0], S3[0], 30);
+                var S3_acc = dx2(S3[0], E[0], S1[0], S2[0], 30);
+
+                var E_new = {x: 2*E[0].x - E[1].x + E_acc.x*dt*dt, y:2*E[0].y - E[1].y + E_acc.y*dt*dt, m: E_init.m};
+                var S1_new = {x: 2*S1[0].x - S1[1].x + S1_acc.x*dt*dt, y: 2*S1[0].y - S1[1].y + S1_acc.y*dt*dt, m: S1_init.m};
+                var S2_new = {x: 2*S2[0].x - S2[1].x + S2_acc.x*dt*dt, y: 2*S2[0].y - S2[1].y + S2_acc.y*dt*dt, m:S2_init.m};
+                var S3_new = {x: 2*S3[0].x - S3[1].x + S3_acc.x*dt*dt, y: 2*S3[0].y - S3[1].y + S3_acc.y*dt*dt, m:S3_init.m};
+
+                E.unshift(E_new);
+                S1.unshift(S1_new);
+                S2.unshift(S2_new);
+                S3.unshift(S3_new);
+
+                E.pop();
+                S1.pop();
+                S2.pop();
+                S3.pop();
+
+                if (count % trailRes ==0){
+                    E_trail.unshift(E_new);
+                    S1_trail.unshift(S1_new);
+                    S2_trail.unshift(S2_new);
+                    S3_trail.unshift(S3_new);
+
+                    if (E_trail.length>=trailLen){
+                        E_trail.pop();
+                        S1_trail.pop();
+                        S2_trail.pop();
+                        S3_trail.pop();
+                    }
+                }
+            }
+
+            function drawPlanet(){
+                ctx.fillStyle = "#AAAAAA";
+                ctx.beginPath();
+                X=E[0].x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-E[0].y/scale*(WIDTH/2)+HEIGHT/2;
+                var size = 2;
+                if (closeE){
+                    size = 10;
+                }
+                ctx.arc(X,Y,size,0,2*Math.PI);
+                ctx.fill();
+
+            }  
+            
+            function drawStars(){
+                ctx.fillStyle = "rgb(178,34,34)";
+
+                ctx.beginPath();
+                X=S1[0].x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-S1[0].y/scale*(WIDTH/2)+HEIGHT/2;
+                var size = 8;
+                if (closeS1){
+                    size = 10;
+                }
+                ctx.arc(X,Y,size,0,2*Math.PI);
+                ctx.fill();
+
+                
+                ctx.beginPath();
+                X=S2[0].x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-S2[0].y/scale*(WIDTH/2)+HEIGHT/2;
+                var size = 6;
+                if (closeS2){
+                    size = 10;
+                }
+                ctx.arc(X,Y,size,0,2*Math.PI);
+                ctx.fill();
+                
+                ctx.beginPath();
+                X=S3[0].x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-S3[0].y/scale*(WIDTH/2)+HEIGHT/2;
+                var size = 4;
+                if (closeS3){
+                    size = 10;
+                }
+                ctx.arc(X,Y,size,0,2*Math.PI);
+                ctx.fill();
+            }
+            
+            function drawTrails(){
+
+                ctx.beginPath();
+                X=E_trail[0].x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-E_trail[0].y/scale*(WIDTH/2)+HEIGHT/2;
+                ctx.moveTo(X,Y);
+                for (var i = 1; i<trailLen; i++){
+                    X=E_trail[i].x/scale*(WIDTH/2)+WIDTH/2;
+                    Y=-E_trail[i].y/scale*(WIDTH/2)+HEIGHT/2;
+                    ctx.lineTo(X,Y);
+                }
+                ctx.strokeStyle = "#AAAAAA";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                // ctx.stroke();
+
+                ctx.beginPath();
+                X=S1_trail[0].x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-S1_trail[0].y/scale*(WIDTH/2)+HEIGHT/2;
+                ctx.moveTo(X,Y);
+                for (var i = 1; i<trailLen; i++){
+                    X=S1_trail[i].x/scale*(WIDTH/2)+WIDTH/2;
+                    Y=-S1_trail[i].y/scale*(WIDTH/2)+HEIGHT/2;
+                    ctx.lineTo(X,Y);
+                }
+
+                ctx.strokeStyle = "rgb(178,34,34)";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                ctx.beginPath();
+                X=S2_trail[0].x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-S2_trail[0].y/scale*(WIDTH/2)+HEIGHT/2;
+                ctx.moveTo(X,Y);
+                for (var i = 1; i<trailLen; i++){
+                    X=S2_trail[i].x/scale*(WIDTH/2)+WIDTH/2;
+                    Y=-S2_trail[i].y/scale*(WIDTH/2)+HEIGHT/2;
+                    ctx.lineTo(X,Y);
+                }
+                ctx.strokeStyle = "rgb(178,34,34)";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                // ctx.stroke();
+
+                ctx.beginPath();
+                X=S3_trail[0].x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-S3_trail[0].y/scale*(WIDTH/2)+HEIGHT/2;
+                ctx.moveTo(X,Y);
+                for (var i = 1; i<trailLen; i++){
+                    X=S3_trail[i].x/scale*(WIDTH/2)+WIDTH/2;
+                    Y=-S3_trail[i].y/scale*(WIDTH/2)+HEIGHT/2;
+                    ctx.lineTo(X,Y);
+                }
+                ctx.strokeStyle = "rgb(178,34,34)";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                // ctx.stroke();
+                
+            }
+
+            var stop = true;
+            var count = 0;
+            function draw(){
+                // console.log(E[0].x);
+                count++;
+                ctx.clearRect(0,0, WIDTH, HEIGHT);
+                ctx.beginPath();
+                ctx.rect(0,0, WIDTH, HEIGHT);
+                ctx.fillStyle = "#222222";
+                ctx.fill();
+                
+                scale = slider.value;
+                drawPlanet();
+                drawStars();
+
+                if (!stop){
+                    dragok = false;
+
+                    for (var j = 1; j<1000; j++){
+                        update(dt);
+                    }
+
+                    drawTrails();
+                    requestAnimationFrame(draw);
+                }
+            }
+        
+            draw();
+            function startSim(){
+                stop = false;
+                slider.disabled = false;
+                draw();
+            }
+
+            function stopSim(){
+                slider.value=10;
+                slider.disabled = true;
+                stop =true;
+                initialize_planets()
+            }
+
+
+            //// Mouse Move Planets:
+
+            var dragging = 0;
+
+            function myDown(e){
+                e.preventDefault();
+                e.stopPropagation();
+
+                var mx=parseInt(e.clientX-offsetX);
+                var my=parseInt(e.clientY-offsetY);
+
+                // test each rect to see if mouse is inside
+                dragok=false;
+
+                X=E_init.x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-E_init.y/scale*(WIDTH/2)+HEIGHT/2;
+                if ((mx-X)**2 + (my-Y)**2<100){
+                    dragok = true;
+                    dragging = 0;
+                }
+
+                X=S1_init.x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-S1_init.y/scale*(WIDTH/2)+HEIGHT/2;
+                if ((mx-X)**2 + (my-Y)**2<100){
+                    dragok = true;
+                    dragging = 1;
+                }
+
+                X=S2_init.x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-S2_init.y/scale*(WIDTH/2)+HEIGHT/2;
+                if ((mx-X)**2 + (my-Y)**2<100){
+                    dragok = true;
+                    dragging = 2;
+                }
+
+                X=S3_init.x/scale*(WIDTH/2)+WIDTH/2;
+                Y=-S3_init.y/scale*(WIDTH/2)+HEIGHT/2;
+                if ((mx-X)**2 + (my-Y)**2<100){
+                    dragok = true;
+                    dragging = 3;
+                }
+
+                startX = mx;
+                startY = my;
+            }
+
+            function myUp(e){
+                // tell the browser we're handling this mouse event
+                e.preventDefault();
+                e.stopPropagation();
+
+                // clear all the dragging flags
+                dragok = false;
+            }
+
+            function myMove(e){
+                if (stop){
+                    // get the current mouse position
+                    var mx=parseInt(e.clientX-offsetX);
+                    var my=parseInt(e.clientY-offsetY);
+
+                    X=E_init.x/scale*(WIDTH/2)+WIDTH/2;
+                    Y=-E_init.y/scale*(WIDTH/2)+HEIGHT/2;
+                    if ((mx-X)**2 + (my-Y)**2<100){
+                        closeE = true;
+                    } else {closeE = false;}
+
+                    X=S1_init.x/scale*(WIDTH/2)+WIDTH/2;
+                    Y=-S1_init.y/scale*(WIDTH/2)+HEIGHT/2;
+                    if ((mx-X)**2 + (my-Y)**2<100){
+                        closeS1 = true;
+                    } else {closeS1 = false;}
+
+                    X=S2_init.x/scale*(WIDTH/2)+WIDTH/2;
+                    Y=-S2_init.y/scale*(WIDTH/2)+HEIGHT/2;
+                    if ((mx-X)**2 + (my-Y)**2<100){
+                        closeS2 = true;
+                    } else {closeS2 = false;}
+
+                    X=S3_init.x/scale*(WIDTH/2)+WIDTH/2;
+                    Y=-S3_init.y/scale*(WIDTH/2)+HEIGHT/2;
+                    if ((mx-X)**2 + (my-Y)**2<100){
+                        closeS3 = true;
+                    } else {closeS3 = false;}
+    
+                    // if we're dragging anything...
+                    if (dragok){
+    
+                        // tell the browser we're handling this mouse event
+                        e.preventDefault();
+                        e.stopPropagation();
+    
+                        // calculate the distance the mouse has moved
+                        // since the last mousemove
+                        var dx=(mx-startX)*scale/(WIDTH/2);
+                        var dy=-(my-startY)*scale/(WIDTH/2);
+    
+                        // move each object that isDragging 
+                        // by the distance the mouse has moved
+                        // since the last mousemove
+                        
+                        if (dragging === 0){
+                            E_init.x+=dx;
+                            E_init.y+=dy;
+                        }
+    
+                        if (dragging === 1){
+                            S1_init.x+=dx;
+                            S1_init.y+=dy;
+                        }
+    
+                        if (dragging === 2){
+                            S2_init.x+=dx;
+                            S2_init.y+=dy;
+                        }
+    
+                        if (dragging === 3){
+                            S3_init.x+=dx;
+                            S3_init.y+=dy;
+                        }
+    
+    
+                        // redraw the scene with the new rect positions
+                        initialize_planets();
+                        
+                        // reset the starting mouse position for the next mousemove
+                        startX=mx;
+                        startY=my;
+                        
+                    }
+                    draw();
+                }
+            }
+
+        
+        </script>
+    </body>
+</html>
