@@ -90,10 +90,10 @@
                 return 1/2*((Math.E**t-Math.E**(-t))/(Math.E**t+Math.E**(-t))-1);
             }
 
+            function dist(B1,B2){
+                return Math.sqrt((B1.x-B2.x)**2 + (B1.y-B2.y)**2);
+            }
             function dx2(B,A1,A2,A3, MAX){
-                function dist(B1,B2){
-                    return Math.sqrt((B1.x-B2.x)**2 + (B1.y-B2.y)**2);
-                }
 
                 const SHARP = 10;
 
@@ -256,6 +256,44 @@
                 
             }
 
+            var potential1=-1;
+            var potential2=-2;
+
+            function potential(x,y){
+                return -E[0].m/dist({x:x,y:y},E[0])
+                -S1[0].m/dist({x:x,y:y},S1[0])
+                -S2[0].m/dist({x:x,y:y},S2[0])
+                -S3[0].m/dist({x:x,y:y},S3[0]);
+            }
+
+            function sigmoid(z) {
+                return 1 / (1 + Math.exp(-z));
+            }
+
+            function drawPotential(){
+                var myImageData = ctx.createImageData(WIDTH, HEIGHT);
+                var data = myImageData.data;
+                for( var i =0; i<data.length; i+=4){
+                    var X=Math.floor(i/4) % WIDTH;
+                    var Y = Math.floor(i/(4*WIDTH));
+
+                    var x= (X-WIDTH/2)/(WIDTH/2)*scale;
+                    var y = -(Y-HEIGHT/2)/(WIDTH/2)*scale;
+
+                    var p=potential(x,y);
+                    var interpolate = sigmoid(1/Math.abs(potential1-p)+1/Math.abs(potential2-p)-5);
+                    // var interpolate = 0;
+                    data[i] = Math.floor(34 + interpolate*(100-34));
+                    data[i+1] = Math.floor(34 + interpolate*(100-34));
+                    data[i+2] = Math.floor(34 + interpolate*(100-34));
+                    data[i+3] = 255;
+                    
+                }
+
+                ctx.putImageData(myImageData, 0,0);
+
+            }
+
             var stop = true;
             var count = 0;
             function draw(){
@@ -268,6 +306,7 @@
                 ctx.fill();
                 
                 scale = slider.value;
+                // drawPotential();
                 drawPlanet();
                 drawStars();
 
